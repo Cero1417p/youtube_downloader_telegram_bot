@@ -33,38 +33,41 @@ Puedes usar los siguientes comandos:
 
 @bot.message_handler(commands=['download'])
 def download(message):
-    text = message.text
-    url = text.split(" ")[1]
+    url = message.text[len('/download'):]
     chat = message.chat.id
     print("text:", url)
-    try:
-        yt = pytube.YouTube(url)
-        imagen = yt.thumbnail_url
+    if len(url) > 1:
+        try:
+            yt = pytube.YouTube(url)
+            imagen = yt.thumbnail_url
 
-        # Filtramos las descargas por audio solamente, orden descendiente de calidad y
-        # el primero que será el que tiene la calidad más alta
-        stream = yt.streams.get_audio_only()
-        name = stream.default_filename
-        # quitamos espacios y paréntesis y cambiamos el tipo de fichero a mp3
-        name = name.replace("mp4", "mp3")
-        print("name:", name)
-        # Descargamos el audio seleccionado en el directorio escogido
-        stream.download(filename=name)
-        # enviar imagen del audio (portada, es el thumbnail del video);
-        bot.send_photo(chat_id=chat, photo=imagen)
-        # enviar audio:
-        bot.send_document(chat_id=chat, document=open(name, 'rb'))
+            # Filtramos las descargas por audio solamente, orden descendiente de calidad y
+            # el primero que será el que tiene la calidad más alta
+            stream = yt.streams.get_audio_only()
+            name = stream.default_filename
+            # quitamos espacios y paréntesis y cambiamos el tipo de fichero a mp3
+            name = name.replace("mp4", "mp3")
+            print("name:", name)
+            # Descargamos el audio seleccionado en el directorio escogido
+            stream.download(filename=name)
+            # enviar imagen del audio (portada, es el thumbnail del video);
+            bot.send_photo(chat_id=chat, photo=imagen)
+            # enviar audio:
+            bot.send_document(chat_id=chat, document=open(name, 'rb'))
 
-        # borrar archivo de musica (solo pasa si se envia sin error)
-        operation = 'rm \"' + name+'\"'
-        os.system(operation)
+            # borrar archivo de musica (solo pasa si se envia sin error)
+            operation = 'rm \"' + name + '\"'
+            os.system(operation)
 
-    except pytube.exceptions.RegexMatchError:
-        bot.send_message(chat, 'URL de vídeo no existe')
-        print("URL no encontrada")
-    except BaseException as err:
-        print(f"Unexpected {err=}, {type(err)=}")
-        bot.send_message(chat, 'Se ha producido un error')
+        except pytube.exceptions.RegexMatchError:
+            bot.send_message(chat, 'URL de vídeo no existe')
+            print("URL no encontrada")
+        except BaseException as err:
+            print(f"Unexpected {err=}, {type(err)=}")
+            bot.send_message(chat, 'Se ha producido un error')
+    else:
+        bot.send_message(message.chat.id, 'Ingresa la url despues del comando <b>/download </b><<url>>.', parse_mode="HTML")
+
 
 
 if __name__ == '__main__':
