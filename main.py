@@ -1,74 +1,108 @@
-import telebot
-#from telebot import types
+#!/usr/bin/env python
+# pylint: disable=unused-argument, import-error
+
+import logging
 import os
+from telegram import ForceReply, Update
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+
 import pytube
 from dotenv import load_dotenv
 
+# Enable logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+# set higher logging level for httpx to avoid all GET and POST requests being logged
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
-# carga las variables del archivo .env
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
-bot = telebot.TeleBot(TOKEN)
 
 
-def main():
-    bot.polling()
-
-
-@bot.message_handler(commands=['start', 'help'])
-def handle_start_help(message):
-    if message.text == '/start' or message.text == '/help':
-        init_message = """
-¡Hola, soy un bot para descargar mp3 de youtube !
+# Define a few command handlers. These usually take the two arguments update and
+# context.
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a message when the command /start is issued."""
+    user = update.effective_user
+    await update.message.reply_html(
+        rf"Hi {user.mention_html()}!"+
+        """¡Hola, soy un bot para descargar mp3 de youtube !
 
 Puedes usar los siguientes comandos:
 
 <b>/start</b> - Iniciar el bot
 <b>/help</b> - Mostrar este menú de ayuda
-<b>/download</b> [youtube.com] - Para descargar audio.
-        """
-        bot.send_message(message.chat.id, init_message, parse_mode="HTML")
+<b>/download</b> &lt;url&gt; - Para descargar audio."""
+        ,
+        #reply_markup=ForceReply(selective=True),
+    )
 
 
-@bot.message_handler(commands=['download'])
-def download(message):
-    url = message.text[len('/download'):]
-    chat = message.chat.id
-    print("text:", url)
-    if len(url) > 1:
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a message when the command /help is issued."""
+    await update.message.reply_text("Help!")
+
+
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Echo the user message."""
+    await update.message.reply_text(update.message.text)
+
+
+async def download(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """download video."""
+    if len(context.args)>0:
         try:
+            url = context.args[0]
+            logger.info("url: " + url)
             yt = pytube.YouTube(url)
             imagen = yt.thumbnail_url
 
-            # Filtramos las descargas por audio solamente, orden descendiente de calidad y
-            # el primero que será el que tiene la calidad más alta
             stream = yt.streams.get_audio_only()
             name = stream.default_filename
-            # quitamos espacios y paréntesis y cambiamos el tipo de fichero a mp3
             name = name.replace("mp4", "mp3")
             print("name:", name)
-            # Descargamos el audio seleccionado en el directorio escogido
+            logger.info("name "+name)
             stream.download(filename=name)
-            # enviar imagen del audio (portada, es el thumbnail del video);
-            bot.send_photo(chat_id=chat, photo=imagen)
-            # enviar audio:
-            bot.send_document(chat_id=chat, document=open(name, 'rb'))
 
-            # borrar archivo de musica (solo pasa si se envia sin error)
+            await update.message.reply_photo(imagen)
+            await update.message.reply_audio(open(name,'rb'))
+
             operation = 'rm \"' + name + '\"'
             os.system(operation)
 
         except pytube.exceptions.RegexMatchError:
-            bot.send_message(chat, 'URL de vídeo no existe')
-            print("URL no encontrada")
+            ms = "URL de vídeo no existe"
+            await update.message.reply_text(ms)
+            logger.info(ms)
         except BaseException as err:
             print(f"Unexpected {err=}, {type(err)=}")
-            bot.send_message(chat, 'Se ha producido un error')
+            await update.message.reply_text("Se ha producido un error")
     else:
-        bot.send_message(message.chat.id, 'Ingresa la url despues del comando <b>/download </b><<url>>.', parse_mode="HTML")
+        await update.message.reply_text("/download <url>", )  # parse_mode="HTML")
 
 
 
-if __name__ == '__main__':
+
+def main() -> None:
+    """Start the bot."""
+    # Create the Application and pass it your bot's token.
+    application = Application.builder().token(TOKEN).build()
+
+    # on different commands - answer in Telegram
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("download", download))
+
+    # on non command i.e message - echo the message on Telegram
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
+    # Run the bot until the user presses Ctrl-C
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+if __name__ == "__main__":
     main()
