@@ -64,7 +64,6 @@ async def download(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             stream = yt.streams.get_audio_only()
             name = stream.default_filename
             name = name.replace("mp4", "mp3")
-            print("name:", name)
             logger.info("name "+name)
             stream.download(filename=name)
 
